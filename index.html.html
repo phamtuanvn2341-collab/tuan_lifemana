@@ -1,0 +1,1844 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HabitFlow — Bảng Tổng Quan Theo Dõi Thói Quen & Mục Tiêu</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            400: '#818cf8',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Tùy chỉnh thanh cuộn tinh gọn */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.35);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.55);
+        }
+
+        /* Hiệu ứng vòng tròn tiến độ đồng hồ đếm ngược */
+        .timer-ring-circle {
+            transition: stroke-dashoffset 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        /* Hiệu ứng nút check thói quen */
+        .habit-check-btn {
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .habit-check-btn:active {
+            transform: scale(0.88);
+        }
+
+        /* Thanh kéo âm thanh & tiến độ nhạc */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 6px;
+            border-radius: 999px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #6366f1;
+            margin-top: -4px;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+            transition: transform 0.15s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Hoạt ảnh sóng nhạc khi đang phát */
+        @keyframes equalize {
+            0%, 100% { height: 4px; }
+            50% { height: 16px; }
+        }
+        .eq-bar-1 { animation: equalize 0.8s ease-in-out infinite; }
+        .eq-bar-2 { animation: equalize 0.6s ease-in-out infinite 0.2s; }
+        .eq-bar-3 { animation: equalize 0.9s ease-in-out infinite 0.4s; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen font-sans antialiased selection:bg-indigo-500 selection:text-white transition-colors duration-300">
+
+    <!-- Thông báo nổi (Toast Container) -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- Hộp thoại xác nhận tùy chỉnh (Thay thế confirm/alert) -->
+    <div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl transform transition-all">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <h3 id="confirmModalTitle" class="text-lg font-bold text-slate-900 dark:text-white">Xác nhận thao tác</h3>
+            </div>
+            <p id="confirmModalDesc" class="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+                Bạn có chắc chắn muốn thực hiện thao tác này?
+            </p>
+            <div class="flex items-center justify-end gap-3">
+                <button id="confirmCancelBtn" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition">
+                    Hủy bỏ
+                </button>
+                <button id="confirmAcceptBtn" class="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 transition">
+                    Đồng ý
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thanh điều hướng phía trên (Header) -->
+    <header class="sticky top-0 z-30 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-slate-800/80">
+        <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            <!-- Logo & Tên bảng điều khiển -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                    <i class="fa-solid fa-layer-group text-lg"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white">HabitFlow Studio</h1>
+                        <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                            Không gian Tập trung & Kỷ luật
+                        </span>
+                    </div>
+                    <p id="currentDateDisplay" class="text-xs text-slate-500 dark:text-slate-400">Đang tải ngày hiện tại...</p>
+                </div>
+            </div>
+
+            <!-- Các nút chức năng nhanh -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <button id="resetSampleBtn" title="Khôi phục bộ mục tiêu mẫu" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 transition">
+                    <i class="fa-solid fa-rotate-left text-indigo-500"></i>
+                    <span class="hidden md:inline">Khôi phục dữ liệu mẫu</span>
+                </button>
+
+                <button id="clearWeekBtn" title="Xóa đánh dấu tuần này" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2 transition">
+                    <i class="fa-regular fa-calendar-xmark text-rose-500"></i>
+                    <span class="hidden lg:inline">Đặt lại tuần</span>
+                </button>
+
+                <!-- Nút chuyển đổi Sáng / Tối -->
+                <button id="themeToggleBtn" aria-label="Chuyển đổi giao diện Sáng/Tối" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center transition">
+                    <i id="themeIcon" class="fa-solid fa-sun text-amber-400 text-base"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Nội dung chính -->
+    <main class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Hàng 1: 4 Thẻ chỉ số thống kê (Metric Cards) -->
+        <section aria-label="Thống kê tổng quan" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Card 1: Chuỗi ngày liên tiếp hiện tại -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between relative overflow-hidden group">
+                <div class="space-y-1 z-10">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Chuỗi Ngày Hiện Tại</span>
+                    <div class="flex items-baseline gap-2">
+                        <span id="metricCurrentStreak" class="text-3xl font-extrabold font-mono text-slate-900 dark:text-white">0</span>
+                        <span class="text-xs font-medium text-orange-500">ngày liên tiếp</span>
+                    </div>
+                    <p id="metricStreakSub" class="text-xs text-slate-500 dark:text-slate-400">Hoàn thành ít nhất 50% mục tiêu/ngày</p>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-500 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-fire-flame-curved"></i>
+                </div>
+            </div>
+
+            <!-- Card 2: Kỷ lục chuỗi ngày (Best Streak) -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between relative overflow-hidden group">
+                <div class="space-y-1 z-10">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Kỷ Lục Chuỗi Ngày</span>
+                    <div class="flex items-baseline gap-2">
+                        <span id="metricBestStreak" class="text-3xl font-extrabold font-mono text-slate-900 dark:text-white">0</span>
+                        <span class="text-xs font-medium text-amber-500">kỷ lục cao nhất</span>
+                    </div>
+                    <p id="metricBestHabitName" class="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px]">Đang tính toán...</p>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+            </div>
+
+            <!-- Card 3: Tỷ lệ hoàn thành trong tuần -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between relative overflow-hidden group">
+                <div class="space-y-1 z-10 w-full pr-4">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tỷ Lệ Hoàn Thành Tuần</span>
+                    <div class="flex items-baseline gap-2">
+                        <span id="metricWeeklyRate" class="text-3xl font-extrabold font-mono text-slate-900 dark:text-white">0%</span>
+                        <span id="metricCompletedCount" class="text-xs font-medium text-emerald-500">0/0 mục tiêu</span>
+                    </div>
+                    <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
+                        <div id="metricWeeklyBar" class="bg-gradient-to-r from-indigo-500 to-emerald-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="w-12 h-12 shrink-0 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-chart-pie"></i>
+                </div>
+            </div>
+
+            <!-- Card 4: Điểm tiến độ hôm nay -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between relative overflow-hidden group">
+                <div class="space-y-1 z-10">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tiến Độ Hôm Nay</span>
+                    <div class="flex items-baseline gap-2">
+                        <span id="metricTodayProgress" class="text-3xl font-extrabold font-mono text-slate-900 dark:text-white">0/0</span>
+                        <span id="metricTodayPercent" class="text-xs font-medium text-indigo-500">(0%)</span>
+                    </div>
+                    <p id="metricTodayBadge" class="text-xs text-slate-500 dark:text-slate-400">Hãy bắt đầu mục tiêu đầu tiên!</p>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Hàng 2: Lưới Bố Cục Chính (Trái 8 cột: Bảng Thói Quen & Biểu Đồ | Phải 4 cột: Đồng Hồ Đếm Ngược & Trình Phát Nhạc) -->
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+
+            <!-- CỘT TRÁI (8/12): Quản lý thói quen hằng ngày & Biểu đồ hằng tuần -->
+            <div class="xl:col-span-8 space-y-6">
+
+                <!-- KHỐI 1: BẢNG THEO DÕI MỤC TIÊU & THÓI QUEN HẰNG NGÀY -->
+                <section class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                    <!-- Tiêu đề & Thanh thêm mục tiêu mới -->
+                    <div class="p-5 sm:p-6 border-b border-slate-200/80 dark:border-slate-800 space-y-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h2 class="text-lg font-bold text-slate-900 dark:text-white">Theo Dõi Mục Tiêu & Thói Quen Hằng Ngày</h2>
+                                    <span id="currentDayBadge" class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                                        Hôm nay
+                                    </span>
+                                </div>
+                                <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Nhấn vào ô từng ngày từ Thứ 2 đến Chủ Nhật để ghi nhận hoàn thành và duy trì chuỗi liên tiếp.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Form thêm thói quen mới -->
+                        <form id="addHabitForm" class="flex flex-col sm:flex-row gap-2.5">
+                            <div class="relative flex-1">
+                                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                                    <i class="fa-solid fa-plus"></i>
+                                </span>
+                                <input
+                                    id="habitNameInput"
+                                    type="text"
+                                    required
+                                    maxlength="90"
+                                    placeholder="Nhập mục tiêu mới (VD: Đọc tài liệu nghiên cứu, Ôn tập tiếng Anh 30 phút...)"
+                                    class="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                                >
+                            </div>
+                            <div class="flex gap-2">
+                                <select
+                                    id="habitCategorySelect"
+                                    aria-label="Phân loại mục tiêu"
+                                    class="px-3 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                                >
+                                    <option value="academic">📚 Học thuật & Pháp lý</option>
+                                    <option value="language">🌐 Ngoại ngữ</option>
+                                    <option value="finance">📈 Kinh tế - Tài chính</option>
+                                    <option value="health">🏃 Thể chất & Sức khỏe</option>
+                                    <option value="mind">🧠 Tư duy & Viết lách</option>
+                                </select>
+                                <button
+                                    type="submit"
+                                    class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-md shadow-indigo-500/20 flex items-center gap-2 shrink-0 transition"
+                                >
+                                    <i class="fa-solid fa-circle-plus"></i>
+                                    <span>Thêm mục tiêu</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Bảng ma trận thói quen 7 ngày -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[720px]">
+                            <thead>
+                                <tr id="habitTableHeaderRow" class="border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    <!-- Render tự động bằng JS để đánh dấu cột ngày hiện tại -->
+                                </tr>
+                            </thead>
+                            <tbody id="habitTableBody" class="divide-y divide-slate-200/60 dark:divide-slate-800/70 text-sm">
+                                <!-- Các dòng thói quen được tạo bằng JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Chân bảng: Chú thích nhanh -->
+                    <div class="px-6 py-3.5 bg-slate-50/60 dark:bg-slate-900/50 border-t border-slate-200/70 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                        <div class="flex items-center gap-4">
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="w-3 h-3 rounded bg-indigo-600 inline-block"></span> Đã hoàn thành
+                            </span>
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="w-3 h-3 rounded border-2 border-indigo-500 inline-block"></span> Cột ngày hôm nay
+                            </span>
+                            <span class="inline-flex items-center gap-1.5">
+                                <i class="fa-solid fa-fire text-orange-500"></i> Chuỗi liên tiếp tính đến hiện tại
+                            </span>
+                        </div>
+                        <span id="autoSaveStatus" class="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Đã tự động lưu vào trình duyệt
+                        </span>
+                    </div>
+                </section>
+
+                <!-- KHỐI 2: BIỂU ĐỒ HẰNG TUẦN & PHÂN TÍCH CHUỖI NGÀY LIÊN TIẾP -->
+                <section class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-chart-line text-indigo-500"></i>
+                                <span>Biểu Đồ Hằng Tuần & Xu Hướng Chuỗi Ngày Liên Tiếp</span>
+                            </h2>
+                            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                                Tương quan giữa tỷ lệ hoàn thành mục tiêu mỗi ngày (%) và độ dài chuỗi ngày tích lũy trong tuần.
+                            </p>
+                        </div>
+
+                        <!-- Chú giải biểu đồ -->
+                        <div class="flex items-center gap-4 text-xs font-medium">
+                            <span class="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
+                                <span class="w-3 h-3 rounded-sm bg-indigo-500 inline-block"></span> Tỷ lệ hoàn thành (%)
+                            </span>
+                            <span class="flex items-center gap-1.5 text-orange-500">
+                                <span class="w-3 h-1 rounded-full bg-orange-500 inline-block"></span> Chuỗi ngày liên tiếp (Streak)
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Khung chứa Canvas Chart.js -->
+                    <div class="relative h-64 sm:h-72 w-full">
+                        <canvas id="weeklyStreakChart"></canvas>
+                    </div>
+
+                    <!-- Tóm tắt phân tích từng ngày bên dưới biểu đồ -->
+                    <div id="dailySummaryPills" class="grid grid-cols-7 gap-2 pt-2">
+                        <!-- Render tự động 7 ô tóm tắt Thứ 2 -> Chủ Nhật -->
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- CỘT PHẢI (4/12): Đồng Hồ Đếm Ngược & Trình Phát Nhạc Cá Nhân -->
+            <div class="xl:col-span-4 space-y-6">
+
+                <!-- KHỐI 3: ĐỒNG HỒ ĐẾM NGƯỢC (COUNTDOWN TIMER) -->
+                <section class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-hourglass-half text-indigo-500"></i>
+                                <span>Đồng Hồ Đếm Ngược</span>
+                            </h2>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Phiên tập trung sâu (Pomodoro & Deep Work)</p>
+                        </div>
+                        <button id="testAlarmBtn" title="Nghe thử âm báo hết giờ" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-bell text-amber-500"></i>
+                            <span>Thử chuông</span>
+                        </button>
+                    </div>
+
+                    <!-- Các nút chọn nhanh mốc thời gian (Presets) -->
+                    <div class="grid grid-cols-4 gap-2">
+                        <button type="button" data-minutes="15" class="timer-preset-btn py-2 px-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-indigo-500/10 hover:text-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-500/20 dark:hover:text-indigo-400 border border-transparent hover:border-indigo-500/30 transition">
+                            15 phút
+                        </button>
+                        <button type="button" data-minutes="25" class="timer-preset-btn py-2 px-2 rounded-xl text-xs font-semibold bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300 border border-indigo-500/30 transition">
+                            25 phút
+                        </button>
+                        <button type="button" data-minutes="45" class="timer-preset-btn py-2 px-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-indigo-500/10 hover:text-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-500/20 dark:hover:text-indigo-400 border border-transparent hover:border-indigo-500/30 transition">
+                            45 phút
+                        </button>
+                        <button type="button" data-minutes="60" class="timer-preset-btn py-2 px-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-indigo-500/10 hover:text-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-500/20 dark:hover:text-indigo-400 border border-transparent hover:border-indigo-500/30 transition">
+                            60 phút
+                        </button>
+                    </div>
+
+                    <!-- Vòng tròn tiến độ đồng hồ đếm ngược -->
+                    <div class="relative flex items-center justify-center py-2">
+                        <svg class="w-52 h-52" viewBox="0 0 220 220">
+                            <!-- Vòng nền -->
+                            <circle
+                                cx="110"
+                                cy="110"
+                                r="96"
+                                fill="transparent"
+                                stroke="currentColor"
+                                stroke-width="10"
+                                class="text-slate-100 dark:text-slate-800"
+                            />
+                            <!-- Vòng tiến độ -->
+                            <circle
+                                id="timerProgressCircle"
+                                cx="110"
+                                cy="110"
+                                r="96"
+                                fill="transparent"
+                                stroke="url(#timerGradient)"
+                                stroke-width="10"
+                                stroke-linecap="round"
+                                stroke-dasharray="603.18"
+                                stroke-dashoffset="0"
+                                class="timer-ring-circle"
+                            />
+                            <defs>
+                                <linearGradient id="timerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#6366f1" />
+                                    <stop offset="50%" stop-color="#a855f7" />
+                                    <stop offset="100%" stop-color="#ec4899" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+
+                        <!-- Hiển thị số giờ:phút:giây ở tâm vòng tròn -->
+                        <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                            <span id="timerStatusLabel" class="text-[11px] font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-1">
+                                Sẵn sàng tập trung
+                            </span>
+                            <div id="timerDigitalDisplay" class="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-slate-900 dark:text-white">
+                                00:25:00
+                            </div>
+                            <span id="timerTotalLabel" class="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                                Mục tiêu: 25 phút
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Nhập thời gian tùy chỉnh (Giờ - Phút - Giây) -->
+                    <div class="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200/70 dark:border-slate-800">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">Thời gian tùy chỉnh:</span>
+                            <button id="applyCustomTimeBtn" type="button" class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                                Áp dụng
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label for="customHoursInput" class="block text-[10px] uppercase text-slate-400 mb-1">Giờ</label>
+                                <input id="customHoursInput" type="number" min="0" max="23" value="0" class="w-full px-2.5 py-1.5 text-center font-mono text-sm rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label for="customMinutesInput" class="block text-[10px] uppercase text-slate-400 mb-1">Phút</label>
+                                <input id="customMinutesInput" type="number" min="0" max="59" value="25" class="w-full px-2.5 py-1.5 text-center font-mono text-sm rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label for="customSecondsInput" class="block text-[10px] uppercase text-slate-400 mb-1">Giây</label>
+                                <input id="customSecondsInput" type="number" min="0" max="59" value="0" class="w-full px-2.5 py-1.5 text-center font-mono text-sm rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Nút điều khiển Bắt đầu / Tạm dừng / Đặt lại -->
+                    <div class="grid grid-cols-3 gap-2.5">
+                        <button id="timerStartBtn" type="button" class="col-span-2 py-2.5 px-4 rounded-xl font-semibold text-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 transition">
+                            <i id="timerStartIcon" class="fa-solid fa-play"></i>
+                            <span id="timerStartText">Bắt đầu</span>
+                        </button>
+                        <button id="timerResetBtn" type="button" class="py-2.5 px-4 rounded-xl font-semibold text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center gap-2 transition">
+                            <i class="fa-solid fa-rotate-right"></i>
+                            <span>Đặt lại</span>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- KHỐI 4: TRÌNH TẢI LÊN & PHÁT NHẠC CÁ NHÂN (MUSIC UPLOADER & AUDIO PLAYER) -->
+                <section class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-headphones-simple text-indigo-500"></i>
+                                <span>Trình Phát Nhạc Tập Trung</span>
+                            </h2>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Tải file nhạc từ máy tính hoặc điện thoại của bạn</p>
+                        </div>
+                        <span id="playlistCountBadge" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                            0 bài hát
+                        </span>
+                    </div>
+
+                    <!-- Khu vực kéo-thả hoặc chọn file nhạc từ thiết bị -->
+                    <label
+                        id="musicDropZone"
+                        for="musicFileInput"
+                        class="group cursor-pointer border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/60 dark:bg-slate-800/40 hover:bg-indigo-500/5 transition"
+                    >
+                        <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
+                        </div>
+                        <p class="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            Nhấn để chọn file nhạc hoặc kéo thả vào đây
+                        </p>
+                        <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                            Hỗ trợ MP3, WAV, OGG, FLAC, M4A (Chọn nhiều file cùng lúc)
+                        </p>
+                        <input id="musicFileInput" type="file" accept="audio/*" multiple class="hidden">
+                    </label>
+
+                    <!-- Màn hình hiển thị bài hát đang phát -->
+                    <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4 space-y-3 shadow-inner">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div id="musicArtBox" class="w-11 h-11 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0 text-indigo-300">
+                                    <i class="fa-solid fa-music text-lg"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <p id="currentTrackTitle" class="text-sm font-bold truncate">Chưa có bài hát nào được chọn</p>
+                                    <p id="currentTrackSub" class="text-[11px] text-indigo-200/70 truncate">Hãy tải file âm thanh lên để phát</p>
+                                </div>
+                            </div>
+
+                            <!-- Hiệu ứng sóng nhạc khi phát -->
+                            <div id="audioEqualizer" class="hidden items-end gap-1 h-4 shrink-0 px-1">
+                                <span class="w-1 bg-indigo-400 rounded-full eq-bar-1"></span>
+                                <span class="w-1 bg-pink-400 rounded-full eq-bar-2"></span>
+                                <span class="w-1 bg-indigo-300 rounded-full eq-bar-3"></span>
+                            </div>
+                        </div>
+
+                        <!-- Thanh tua nhạc (Seek bar) & Thời lượng -->
+                        <div class="space-y-1">
+                            <input
+                                id="audioSeekBar"
+                                type="range"
+                                min="0"
+                                max="100"
+                                value="0"
+                                step="0.1"
+                                disabled
+                                class="w-full bg-slate-700 rounded-lg"
+                            >
+                            <div class="flex justify-between text-[11px] font-mono text-slate-300">
+                                <span id="audioCurrentTime">00:00</span>
+                                <span id="audioTotalDuration">00:00</span>
+                            </div>
+                        </div>
+
+                        <!-- Các nút điều khiển trình phát nhạc -->
+                        <div class="flex items-center justify-between pt-1">
+                            <!-- Nút chế độ lặp lại (Loop) -->
+                            <button id="audioLoopBtn" type="button" title="Chế độ lặp lại: Lặp danh sách" class="w-8 h-8 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center transition">
+                                <i class="fa-solid fa-repeat"></i>
+                            </button>
+
+                            <!-- Cụm nút Trước / Phát-Tạm dừng / Tiếp -->
+                            <div class="flex items-center gap-3">
+                                <button id="audioPrevBtn" type="button" title="Bài trước" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition">
+                                    <i class="fa-solid fa-backward-step text-xs"></i>
+                                </button>
+                                <button id="audioPlayPauseBtn" type="button" title="Phát / Tạm dừng" class="w-11 h-11 rounded-2xl bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/40 flex items-center justify-center transition">
+                                    <i id="audioPlayIcon" class="fa-solid fa-play text-sm ml-0.5"></i>
+                                </button>
+                                <button id="audioNextBtn" type="button" title="Bài tiếp theo" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition">
+                                    <i class="fa-solid fa-forward-step text-xs"></i>
+                                </button>
+                            </div>
+
+                            <!-- Điều chỉnh âm lượng -->
+                            <div class="flex items-center gap-1.5">
+                                <button id="audioMuteBtn" type="button" title="Bật/Tắt tiếng" class="w-7 h-7 rounded-lg text-xs text-slate-300 hover:text-white flex items-center justify-center">
+                                    <i id="audioVolumeIcon" class="fa-solid fa-volume-high"></i>
+                                </button>
+                                <input
+                                    id="audioVolumeSlider"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.02"
+                                    value="0.8"
+                                    aria-label="Âm lượng"
+                                    class="w-16 bg-slate-700 rounded-lg"
+                                >
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Danh sách phát (Playlist) -->
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            <span>Danh sách bài hát đã tải lên</span>
+                            <button id="clearPlaylistBtn" type="button" class="text-rose-500 hover:underline hidden">
+                                Xóa tất cả
+                            </button>
+                        </div>
+
+                        <div id="playlistContainer" class="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                            <!-- Trạng thái trống ban đầu -->
+                            <div class="text-center py-6 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 text-xs text-slate-400">
+                                <i class="fa-solid fa-compact-disc text-xl mb-1.5 text-slate-300 dark:text-slate-600 block"></i>
+                                Danh sách phát đang trống. Hãy tải các tệp MP3/WAV yêu thích của bạn lên để nghe trong lúc học tập và làm việc.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Phần tử Audio HTML5 ẩn -->
+                    <audio id="htmlAudioPlayer" preload="metadata"></audio>
+                </section>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer ngắn gọn -->
+    <footer class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-xs text-slate-400 dark:text-slate-600 border-t border-slate-200/60 dark:border-slate-800/60 mt-8">
+        HabitFlow Studio — Bảng tổng quan quản lý mục tiêu, phân tích chuỗi ngày liên tiếp (Streak), đồng hồ đếm ngược & âm nhạc cá nhân.
+    </footer>
+
+    <!-- Toàn bộ logic ứng dụng JavaScript -->
+    <script>
+        /*************************************************************************
+         * 1. CẤU HÌNH DỮ LIỆU MẪU & TRẠNG THÁI (STATE MANAGEMENT)
+         *************************************************************************/
+        const STORAGE_KEY = 'habitflow_dashboard_v1';
+        const THEME_KEY = 'habitflow_theme_v1';
+
+        // Danh sách các thứ trong tuần theo chuẩn Việt Nam (Thứ 2 -> Chủ Nhật)
+        const DAYS_OF_WEEK = [
+            { index: 0, short: 'T2', full: 'Thứ Hai' },
+            { index: 1, short: 'T3', full: 'Thứ Ba' },
+            { index: 2, short: 'T4', full: 'Thứ Tư' },
+            { index: 3, short: 'T5', full: 'Thứ Năm' },
+            { index: 4, short: 'T6', full: 'Thứ Sáu' },
+            { index: 5, short: 'T7', full: 'Thứ Bảy' },
+            { index: 6, short: 'CN', full: 'Chủ Nhật' }
+        ];
+
+        // Thông tin biểu tượng & màu sắc theo danh mục
+        const CATEGORY_META = {
+            academic: { label: 'Học thuật & Pháp lý', icon: 'fa-scale-balanced', badgeClass: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' },
+            language: { label: 'Ngoại ngữ', icon: 'fa-language', badgeClass: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
+            finance:  { label: 'Kinh tế - Tài chính', icon: 'fa-chart-column', badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
+            health:   { label: 'Thể chất & Sức khỏe', icon: 'fa-dumbbell', badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
+            mind:     { label: 'Tư duy & Viết lách', icon: 'fa-feather-pointed', badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' }
+        };
+
+        // Xác định chỉ số ngày hiện tại trong tuần (0 = Thứ 2, ..., 6 = Chủ Nhật)
+        function getTodayDayIndex() {
+            const jsDay = new Date().getDay(); // 0 là Chủ Nhật, 1 là Thứ 2...
+            return jsDay === 0 ? 6 : jsDay - 1;
+        }
+
+        const todayIndex = getTodayDayIndex();
+
+        // Khởi tạo dữ liệu mẫu thông minh tính đến ngày hiện tại trong tuần
+        function createDefaultSampleHabits() {
+            // Tạo mảng 7 ngày có dữ liệu hoàn thành mẫu chân thực tính tới hôm nay
+            const buildPattern = (pattern, priorStreak) => {
+                const days = [false, false, false, false, false, false, false];
+                for (let i = 0; i <= todayIndex; i++) {
+                    days[i] = pattern[i] !== undefined ? pattern[i] : true;
+                }
+                return { days, priorStreak };
+            };
+
+            const h1 = buildPattern([true, true, true, true, true, true, true], 5);
+            const h2 = buildPattern([true, true, true, false, true, true, true], 3);
+            const h3 = buildPattern([true, false, true, true, true, true, false], 2);
+            const h4 = buildPattern([true, true, true, true, false, true, true], 4);
+            const h5 = buildPattern([false, true, true, true, true, true, true], 1);
+
+            return [
+                {
+                    id: 'hab_1',
+                    name: 'Đọc tài liệu nghiên cứu / văn bản pháp lý chuyên ngành',
+                    category: 'academic',
+                    priorStreak: h1.priorStreak,
+                    days: h1.days
+                },
+                {
+                    id: 'hab_2',
+                    name: 'Luyện nghe & học từ vựng ngoại ngữ 30 phút',
+                    category: 'language',
+                    priorStreak: h2.priorStreak,
+                    days: h2.days
+                },
+                {
+                    id: 'hab_3',
+                    name: 'Đọc tin tức kinh tế - tài chính & phân tích thị trường',
+                    category: 'finance',
+                    priorStreak: h3.priorStreak,
+                    days: h3.days
+                },
+                {
+                    id: 'hab_4',
+                    name: 'Tập thể dục rèn luyện thể lực 45 phút',
+                    category: 'health',
+                    priorStreak: h4.priorStreak,
+                    days: h4.days
+                },
+                {
+                    id: 'hab_5',
+                    name: 'Hệ thống hóa ghi chú & lập kế hoạch ngày mới',
+                    category: 'mind',
+                    priorStreak: h5.priorStreak,
+                    days: h5.days
+                }
+            ];
+        }
+
+        let habitsState = [];
+        let weeklyChartInstance = null;
+
+        /*************************************************************************
+         * 2. TIỆN ÍCH THÔNG BÁO (TOAST) & HỘP THOẠI XÁC NHẬN (MODAL)
+         *************************************************************************/
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            const styleMap = {
+                success: 'bg-emerald-600 text-white border-emerald-500',
+                warning: 'bg-amber-500 text-white border-amber-400',
+                error: 'bg-rose-600 text-white border-rose-500',
+                info: 'bg-slate-900 dark:bg-indigo-600 text-white border-slate-700 dark:border-indigo-400'
+            };
+
+            const iconMap = {
+                success: 'fa-circle-check',
+                warning: 'fa-bell',
+                error: 'fa-circle-exclamation',
+                info: 'fa-sparkles'
+            };
+
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border text-xs sm:text-sm font-medium transform transition-all duration-300 translate-y-2 opacity-0 ${styleMap[type] || styleMap.info}`;
+            toast.innerHTML = `
+                <i class="fa-solid ${iconMap[type] || 'fa-circle-info'} text-base shrink-0"></i>
+                <span class="flex-1 leading-snug">${message}</span>
+            `;
+
+            container.appendChild(toast);
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-4');
+                setTimeout(() => toast.remove(), 300);
+            }, 3400);
+        }
+
+        function openConfirmModal(title, description, onConfirm) {
+            const modal = document.getElementById('confirmModal');
+            const titleEl = document.getElementById('confirmModalTitle');
+            const descEl = document.getElementById('confirmModalDesc');
+            const acceptBtn = document.getElementById('confirmAcceptBtn');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+
+            titleEl.textContent = title;
+            descEl.textContent = description;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                acceptBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+
+            acceptBtn.onclick = () => {
+                cleanup();
+                onConfirm();
+            };
+            cancelBtn.onclick = cleanup;
+        }
+
+        /*************************************************************************
+         * 3. LƯU TRỮ LOCALSTORAGE & TÍNH TOÁN CHUỖI NGÀY LIÊN TIẾP (STREAK)
+         *************************************************************************/
+        function loadHabitsFromStorage() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) {
+                    habitsState = createDefaultSampleHabits();
+                    saveHabitsToStorage();
+                } else {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        habitsState = parsed;
+                    } else {
+                        habitsState = createDefaultSampleHabits();
+                    }
+                }
+            } catch (e) {
+                habitsState = createDefaultSampleHabits();
+            }
+        }
+
+        function saveHabitsToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(habitsState));
+                const badge = document.getElementById('autoSaveStatus');
+                if (badge) {
+                    badge.innerHTML = `<i class="fa-solid fa-check-double"></i> Đã lưu lúc ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+                }
+            } catch (e) {
+                console.error('Không thể lưu vào localStorage:', e);
+            }
+        }
+
+        /**
+         * Tính toán chuỗi ngày liên tiếp (Current Streak) và Kỷ lục (Best Streak) cho 1 thói quen
+         * - Nếu các ngày từ Thứ 2 đến ngày đang xét đều hoàn thành, cộng thêm priorStreak (chuỗi tuần trước)
+         */
+        function calculateSingleHabitStreak(habit) {
+            const days = habit.days || [false, false, false, false, false, false, false];
+            const prior = Number(habit.priorStreak) || 0;
+
+            // Tính chuỗi hiện tại tính ngược từ hôm nay (hoặc hôm qua nếu hôm nay chưa đánh dấu)
+            let checkDay = todayIndex;
+            if (!days[checkDay] && checkDay > 0 && days[checkDay - 1]) {
+                checkDay = checkDay - 1;
+            }
+
+            let currentStreak = 0;
+            let unbrokenToMonday = true;
+            for (let d = checkDay; d >= 0; d--) {
+                if (days[d]) {
+                    currentStreak++;
+                } else {
+                    unbrokenToMonday = false;
+                    break;
+                }
+            }
+            if (unbrokenToMonday && days[0] && currentStreak > 0) {
+                currentStreak += prior;
+            }
+
+            // Tính chuỗi dài nhất trong tuần
+            let maxRun = 0;
+            let running = prior;
+            for (let d = 0; d < 7; d++) {
+                if (days[d]) {
+                    running++;
+                    if (running > maxRun) maxRun = running;
+                } else {
+                    running = 0;
+                }
+            }
+
+            return {
+                currentStreak,
+                bestStreak: Math.max(maxRun, currentStreak, prior)
+            };
+        }
+
+        /**
+         * Tính toán thống kê toàn bảng điều khiển cho 7 ngày trong tuần
+         */
+        function calculateOverallAnalytics() {
+            const totalHabits = habitsState.length;
+            const dailyRates = [0, 0, 0, 0, 0, 0, 0];
+            const dailyCompletedCounts = [0, 0, 0, 0, 0, 0, 0];
+
+            if (totalHabits > 0) {
+                for (let d = 0; d < 7; d++) {
+                    let count = 0;
+                    habitsState.forEach(h => {
+                        if (h.days && h.days[d]) count++;
+                    });
+                    dailyCompletedCounts[d] = count;
+                    dailyRates[d] = Math.round((count / totalHabits) * 100);
+                }
+            }
+
+            // Một ngày được tính vào "Chuỗi ngày chung" nếu hoàn thành >= 50% số mục tiêu (và tối thiểu 1 mục tiêu)
+            const basePriorOverall = totalHabits > 0 ? 3 : 0;
+            const streakTrendByDay = [0, 0, 0, 0, 0, 0, 0];
+            let runningStreak = basePriorOverall;
+
+            for (let d = 0; d < 7; d++) {
+                if (totalHabits > 0 && dailyRates[d] >= 50) {
+                    runningStreak++;
+                } else {
+                    runningStreak = 0;
+                }
+                streakTrendByDay[d] = runningStreak;
+            }
+
+            // Chuỗi ngày hiện tại của người dùng tính đến hôm nay
+            let activeOverallStreak = streakTrendByDay[todayIndex];
+            if (activeOverallStreak === 0 && todayIndex > 0 && streakTrendByDay[todayIndex - 1] > 0) {
+                activeOverallStreak = streakTrendByDay[todayIndex - 1];
+            }
+
+            // Tìm kỷ lục cao nhất trong các thói quen & chuỗi tổng
+            let bestOverallStreak = Math.max(...streakTrendByDay, basePriorOverall);
+            let bestHabitTitle = 'Chưa có mục tiêu';
+
+            habitsState.forEach(h => {
+                const st = calculateSingleHabitStreak(h);
+                if (st.bestStreak >= bestOverallStreak) {
+                    bestOverallStreak = st.bestStreak;
+                    bestHabitTitle = h.name;
+                }
+            });
+
+            const totalPossibleWeek = totalHabits * 7;
+            const totalCompletedWeek = dailyCompletedCounts.reduce((a, b) => a + b, 0);
+            const weeklyRate = totalPossibleWeek > 0 ? Math.round((totalCompletedWeek / totalPossibleWeek) * 100) : 0;
+
+            return {
+                totalHabits,
+                dailyRates,
+                dailyCompletedCounts,
+                streakTrendByDay,
+                activeOverallStreak,
+                bestOverallStreak,
+                bestHabitTitle,
+                totalCompletedWeek,
+                totalPossibleWeek,
+                weeklyRate
+            };
+        }
+
+        /*************************************************************************
+         * 4. HIỂN THỊ BẢNG MỤC TIÊU, THẺ CHỈ SỐ & BIỂU ĐỒ TUẦN
+         *************************************************************************/
+        function renderDashboard() {
+            renderTableHeader();
+            renderHabitRows();
+            const stats = calculateOverallAnalytics();
+            renderMetricCards(stats);
+            renderDailySummaryPills(stats);
+            updateWeeklyChart(stats);
+        }
+
+        function renderTableHeader() {
+            const headerRow = document.getElementById('habitTableHeaderRow');
+            let html = `
+                <th class="py-3.5 pl-6 pr-3 w-[320px]">Mục tiêu / Thói quen hằng ngày</th>
+            `;
+
+            DAYS_OF_WEEK.forEach(day => {
+                const isToday = day.index === todayIndex;
+                html += `
+                    <th class="py-3.5 px-2 text-center ${isToday ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-500/10' : ''}">
+                        <div class="flex flex-col items-center">
+                            <span>${day.short}</span>
+                            ${isToday ? '<span class="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-0.5"></span>' : ''}
+                        </div>
+                    </th>
+                `;
+            });
+
+            html += `
+                <th class="py-3.5 px-3 text-center">Chuỗi (Streak)</th>
+                <th class="py-3.5 pl-2 pr-6 text-right">Xóa</th>
+            `;
+            headerRow.innerHTML = html;
+        }
+
+        function renderHabitRows() {
+            const tbody = document.getElementById('habitTableBody');
+
+            if (habitsState.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="py-12 text-center text-slate-400 dark:text-slate-500">
+                            <i class="fa-solid fa-clipboard-list text-3xl mb-2 block text-slate-300 dark:text-slate-700"></i>
+                            Chưa có mục tiêu nào. Hãy thêm mục tiêu mới ở thanh phía trên hoặc nhấn "Khôi phục dữ liệu mẫu".
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = habitsState.map(habit => {
+                const meta = CATEGORY_META[habit.category] || CATEGORY_META.academic;
+                const streakInfo = calculateSingleHabitStreak(habit);
+                const completedThisWeek = habit.days.filter(Boolean).length;
+                const rateThisWeek = Math.round((completedThisWeek / 7) * 100);
+
+                const dayCells = DAYS_OF_WEEK.map(day => {
+                    const isChecked = Boolean(habit.days[day.index]);
+                    const isToday = day.index === todayIndex;
+
+                    return `
+                        <td class="py-3.5 px-2 text-center ${isToday ? 'bg-indigo-500/5 dark:bg-indigo-500/10' : ''}">
+                            <button
+                                type="button"
+                                onclick="toggleHabitDay('${habit.id}', ${day.index})"
+                                title="${habit.name} - ${day.full}"
+                                aria-label="Đánh dấu ${day.full}"
+                                class="habit-check-btn w-8 h-8 rounded-xl mx-auto flex items-center justify-center border transition ${
+                                    isChecked
+                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-500/30'
+                                        : isToday
+                                            ? 'border-2 border-indigo-400 dark:border-indigo-500 text-transparent hover:bg-indigo-500/10'
+                                            : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-transparent hover:border-indigo-400'
+                                }"
+                            >
+                                <i class="fa-solid fa-check text-xs ${isChecked ? 'opacity-100' : 'opacity-0'}"></i>
+                            </button>
+                        </td>
+                    `;
+                }).join('');
+
+                return `
+                    <tr class="group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                        <td class="py-3.5 pl-6 pr-3">
+                            <div class="flex items-start gap-3">
+                                <div class="w-9 h-9 rounded-xl border ${meta.badgeClass} flex items-center justify-center shrink-0 mt-0.5">
+                                    <i class="fa-solid ${meta.icon} text-sm"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="font-semibold text-slate-800 dark:text-slate-100 leading-snug break-words">${escapeHtml(habit.name)}</p>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="text-[11px] font-medium text-slate-400 dark:text-slate-500">${meta.label}</span>
+                                        <span class="text-[11px] font-mono text-indigo-500 dark:text-indigo-400">${completedThisWeek}/7 ngày (${rateThisWeek}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        ${dayCells}
+                        <td class="py-3.5 px-3 text-center">
+                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold font-mono ${
+                                streakInfo.currentStreak > 0
+                                    ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                            }">
+                                <i class="fa-solid fa-fire ${streakInfo.currentStreak > 0 ? 'text-orange-500' : 'text-slate-400'}"></i>
+                                <span>${streakInfo.currentStreak} ngày</span>
+                            </div>
+                        </td>
+                        <td class="py-3.5 pl-2 pr-6 text-right">
+                            <button
+                                type="button"
+                                onclick="removeHabit('${habit.id}')"
+                                title="Xóa mục tiêu này"
+                                class="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 inline-flex items-center justify-center transition"
+                            >
+                                <i class="fa-regular fa-trash-can text-sm"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderMetricCards(stats) {
+            document.getElementById('metricCurrentStreak').textContent = stats.activeOverallStreak;
+            document.getElementById('metricBestStreak').textContent = stats.bestOverallStreak;
+            document.getElementById('metricBestHabitName').textContent = `Dẫn đầu: ${stats.bestHabitTitle}`;
+
+            document.getElementById('metricWeeklyRate').textContent = `${stats.weeklyRate}%`;
+            document.getElementById('metricCompletedCount').textContent = `${stats.totalCompletedWeek}/${stats.totalPossibleWeek} mục tiêu`;
+            document.getElementById('metricWeeklyBar').style.width = `${stats.weeklyRate}%`;
+
+            const todayCompleted = stats.dailyCompletedCounts[todayIndex] || 0;
+            const todayRate = stats.dailyRates[todayIndex] || 0;
+            document.getElementById('metricTodayProgress').textContent = `${todayCompleted}/${stats.totalHabits}`;
+            document.getElementById('metricTodayPercent').textContent = `(${todayRate}%)`;
+
+            const badgeEl = document.getElementById('metricTodayBadge');
+            if (todayRate === 100 && stats.totalHabits > 0) {
+                badgeEl.textContent = 'Xuất sắc! Đã hoàn thành 100% hôm nay';
+                badgeEl.className = 'text-xs text-emerald-500 font-medium';
+            } else if (todayRate >= 50) {
+                badgeEl.textContent = 'Đã giữ vững chuỗi ngày liên tiếp!';
+                badgeEl.className = 'text-xs text-indigo-500 font-medium';
+            } else {
+                badgeEl.textContent = 'Cần đạt tối thiểu 50% để giữ chuỗi';
+                badgeEl.className = 'text-xs text-slate-500 dark:text-slate-400';
+            }
+        }
+
+        function renderDailySummaryPills(stats) {
+            const container = document.getElementById('dailySummaryPills');
+            container.innerHTML = DAYS_OF_WEEK.map((day, idx) => {
+                const rate = stats.dailyRates[idx];
+                const streak = stats.streakTrendByDay[idx];
+                const isToday = idx === todayIndex;
+
+                return `
+                    <div class="p-2.5 rounded-xl border text-center transition ${
+                        isToday
+                            ? 'bg-indigo-500/10 border-indigo-500/40 dark:bg-indigo-500/15'
+                            : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/70 dark:border-slate-800'
+                    }">
+                        <div class="text-[11px] font-bold ${isToday ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}">
+                            ${day.short}
+                        </div>
+                        <div class="text-xs sm:text-sm font-extrabold font-mono text-slate-800 dark:text-white mt-0.5">
+                            ${rate}%
+                        </div>
+                        <div class="text-[10px] font-medium text-orange-500 flex items-center justify-center gap-0.5 mt-0.5">
+                            <i class="fa-solid fa-fire text-[9px]"></i> ${streak}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateWeeklyChart(stats) {
+            const ctx = document.getElementById('weeklyStreakChart').getContext('2d');
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+            const gridColor = isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(148, 163, 184, 0.2)';
+
+            const labels = DAYS_OF_WEEK.map((d, i) => i === todayIndex ? `${d.full} (Hôm nay)` : d.full);
+
+            if (weeklyChartInstance) {
+                weeklyChartInstance.data.labels = labels;
+                weeklyChartInstance.data.datasets[0].data = stats.dailyRates;
+                weeklyChartInstance.data.datasets[1].data = stats.streakTrendByDay;
+                weeklyChartInstance.options.scales.x.ticks.color = textColor;
+                weeklyChartInstance.options.scales.y.ticks.color = textColor;
+                weeklyChartInstance.options.scales.y1.ticks.color = '#f97316';
+                weeklyChartInstance.options.scales.y.grid.color = gridColor;
+                weeklyChartInstance.update();
+                return;
+            }
+
+            weeklyChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Tỷ lệ hoàn thành (%)',
+                            data: stats.dailyRates,
+                            backgroundColor: DAYS_OF_WEEK.map((_, i) =>
+                                i === todayIndex ? 'rgba(99, 102, 241, 0.9)' : 'rgba(99, 102, 241, 0.55)'
+                            ),
+                            borderColor: '#6366f1',
+                            borderWidth: 1.5,
+                            borderRadius: 8,
+                            yAxisID: 'y',
+                            order: 2
+                        },
+                        {
+                            type: 'line',
+                            label: 'Chuỗi ngày liên tiếp (Streak)',
+                            data: stats.streakTrendByDay,
+                            borderColor: '#f97316',
+                            backgroundColor: 'rgba(249, 115, 22, 0.15)',
+                            borderWidth: 3,
+                            pointBackgroundColor: '#f97316',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            tension: 0.35,
+                            fill: false,
+                            yAxisID: 'y1',
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            padding: 12,
+                            cornerRadius: 10,
+                            titleFont: { family: 'Inter', size: 13, weight: 'bold' },
+                            bodyFont: { family: 'Inter', size: 12 }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: textColor, font: { family: 'Inter', size: 11, weight: '600' } }
+                        },
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            min: 0,
+                            max: 100,
+                            grid: { color: gridColor },
+                            ticks: {
+                                color: textColor,
+                                callback: value => `${value}%`,
+                                font: { family: 'JetBrains Mono', size: 11 }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            min: 0,
+                            suggestedMax: 10,
+                            grid: { drawOnChartArea: false },
+                            ticks: {
+                                stepSize: 1,
+                                color: '#f97316',
+                                callback: value => `${value} ngày`,
+                                font: { family: 'JetBrains Mono', size: 11 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Thao tác thêm, bật/tắt, xóa mục tiêu
+        window.toggleHabitDay = function(habitId, dayIdx) {
+            const habit = habitsState.find(h => h.id === habitId);
+            if (!habit) return;
+            habit.days[dayIdx] = !habit.days[dayIdx];
+            saveHabitsToStorage();
+            renderDashboard();
+        };
+
+        window.removeHabit = function(habitId) {
+            const target = habitsState.find(h => h.id === habitId);
+            if (!target) return;
+            openConfirmModal(
+                'Xóa mục tiêu thói quen',
+                `Bạn có chắc muốn xóa mục tiêu "${target.name}" khỏi danh sách theo dõi không?`,
+                () => {
+                    habitsState = habitsState.filter(h => h.id !== habitId);
+                    saveHabitsToStorage();
+                    renderDashboard();
+                    showToast('Đã xóa mục tiêu khỏi bảng theo dõi.', 'info');
+                }
+            );
+        };
+
+        document.getElementById('addHabitForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('habitNameInput');
+            const categorySelect = document.getElementById('habitCategorySelect');
+            const trimmedName = nameInput.value.trim();
+
+            if (!trimmedName) return;
+
+            const newHabit = {
+                id: 'hab_' + Date.now(),
+                name: trimmedName,
+                category: categorySelect.value,
+                priorStreak: 0,
+                days: [false, false, false, false, false, false, false]
+            };
+
+            habitsState.unshift(newHabit);
+            nameInput.value = '';
+            saveHabitsToStorage();
+            renderDashboard();
+            showToast(`Đã thêm mục tiêu: "${trimmedName}"`, 'success');
+        });
+
+        document.getElementById('resetSampleBtn').addEventListener('click', () => {
+            openConfirmModal(
+                'Khôi phục dữ liệu mẫu',
+                'Thao tác này sẽ khôi phục bộ 5 mục tiêu học thuật và rèn luyện mẫu. Dữ liệu hiện tại sẽ được thay thế.',
+                () => {
+                    habitsState = createDefaultSampleHabits();
+                    saveHabitsToStorage();
+                    renderDashboard();
+                    showToast('Đã khôi phục bộ dữ liệu mục tiêu mẫu!', 'success');
+                }
+            );
+        });
+
+        document.getElementById('clearWeekBtn').addEventListener('click', () => {
+            openConfirmModal(
+                'Đặt lại đánh dấu tuần này',
+                'Tất cả các ô đánh dấu hoàn thành từ Thứ 2 đến Chủ Nhật sẽ được đặt về trạng thái chưa hoàn thành để bắt đầu tuần mới.',
+                () => {
+                    habitsState.forEach(h => {
+                        h.days = [false, false, false, false, false, false, false];
+                    });
+                    saveHabitsToStorage();
+                    renderDashboard();
+                    showToast('Đã đặt lại dữ liệu tuần mới!', 'info');
+                }
+            );
+        });
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        /*************************************************************************
+         * 5. ĐỒNG HỒ ĐẾM NGƯỢC (COUNTDOWN TIMER) & ÂM BÁO WEB AUDIO API
+         *************************************************************************/
+        const RING_CIRCUMFERENCE = 2 * Math.PI * 96; // r = 96 => ~603.18
+        let timerTotalSeconds = 25 * 60;
+        let timerRemainingSeconds = 25 * 60;
+        let timerIntervalId = null;
+        let isTimerRunning = false;
+
+        const timerProgressCircle = document.getElementById('timerProgressCircle');
+        const timerDigitalDisplay = document.getElementById('timerDigitalDisplay');
+        const timerStatusLabel = document.getElementById('timerStatusLabel');
+        const timerTotalLabel = document.getElementById('timerTotalLabel');
+        const timerStartBtn = document.getElementById('timerStartBtn');
+        const timerStartIcon = document.getElementById('timerStartIcon');
+        const timerStartText = document.getElementById('timerStartText');
+
+        function formatHMS(totalSec) {
+            const hrs = Math.floor(totalSec / 3600);
+            const mins = Math.floor((totalSec % 3600) / 60);
+            const secs = totalSec % 60;
+            return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':');
+        }
+
+        function updateTimerUI() {
+            timerDigitalDisplay.textContent = formatHMS(timerRemainingSeconds);
+
+            const ratio = timerTotalSeconds > 0 ? timerRemainingSeconds / timerTotalSeconds : 0;
+            const offset = RING_CIRCUMFERENCE * (1 - ratio);
+            timerProgressCircle.style.strokeDasharray = `${RING_CIRCUMFERENCE}`;
+            timerProgressCircle.style.strokeDashoffset = `${offset}`;
+        }
+
+        function setTimerDuration(seconds, labelText) {
+            pauseCountdown();
+            timerTotalSeconds = Math.max(1, seconds);
+            timerRemainingSeconds = timerTotalSeconds;
+            timerStatusLabel.textContent = 'Sẵn sàng tập trung';
+            timerTotalLabel.textContent = labelText || `Mục tiêu: ${formatHMS(timerTotalSeconds)}`;
+            updateTimerUI();
+        }
+
+        function startCountdown() {
+            if (timerRemainingSeconds <= 0) {
+                timerRemainingSeconds = timerTotalSeconds;
+            }
+            isTimerRunning = true;
+            timerStatusLabel.textContent = 'Đang trong phiên tập trung...';
+            timerStartIcon.className = 'fa-solid fa-pause';
+            timerStartText.textContent = 'Tạm dừng';
+            timerStartBtn.classList.replace('bg-indigo-600', 'bg-amber-500');
+            timerStartBtn.classList.replace('hover:bg-indigo-500', 'hover:bg-amber-400');
+
+            timerIntervalId = setInterval(() => {
+                if (timerRemainingSeconds > 0) {
+                    timerRemainingSeconds--;
+                    updateTimerUI();
+                } else {
+                    pauseCountdown();
+                    timerStatusLabel.textContent = 'Đã hoàn thành phiên!';
+                    playAlarmBellSound();
+                    showToast('⏰ Đã hết thời gian đếm ngược! Chúc mừng bạn hoàn thành phiên tập trung.', 'warning');
+                }
+            }, 1000);
+        }
+
+        function pauseCountdown() {
+            isTimerRunning = false;
+            if (timerIntervalId) {
+                clearInterval(timerIntervalId);
+                timerIntervalId = null;
+            }
+            timerStartIcon.className = 'fa-solid fa-play';
+            timerStartText.textContent = 'Bắt đầu';
+            timerStartBtn.classList.replace('bg-amber-500', 'bg-indigo-600');
+            timerStartBtn.classList.replace('hover:bg-amber-400', 'hover:bg-indigo-500');
+        }
+
+        // Phát chuông báo hết giờ bằng Web Audio API (Không cần file ngoài)
+        function playAlarmBellSound() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                const ctx = new AudioCtx();
+                const notes = [523.25, 659.25, 783.99, 1046.5]; // Hợp âm Đô trưởng (C5 - E5 - G5 - C6)
+
+                notes.forEach((freq, idx) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.16);
+
+                    gain.gain.setValueAtTime(0.001, ctx.currentTime + idx * 0.16);
+                    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + idx * 0.16 + 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + idx * 0.16 + 0.65);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(ctx.currentTime + idx * 0.16);
+                    osc.stop(ctx.currentTime + idx * 0.16 + 0.7);
+                });
+            } catch (e) {
+                console.warn('Web Audio API không khả dụng:', e);
+            }
+        }
+
+        timerStartBtn.addEventListener('click', () => {
+            if (isTimerRunning) {
+                pauseCountdown();
+                timerStatusLabel.textContent = 'Đã tạm dừng';
+            } else {
+                startCountdown();
+            }
+        });
+
+        document.getElementById('timerResetBtn').addEventListener('click', () => {
+            pauseCountdown();
+            timerRemainingSeconds = timerTotalSeconds;
+            timerStatusLabel.textContent = 'Đã đặt lại đồng hồ';
+            updateTimerUI();
+        });
+
+        document.getElementById('testAlarmBtn').addEventListener('click', () => {
+            playAlarmBellSound();
+            showToast('Đang phát thử âm báo hết giờ.', 'info');
+        });
+
+        // Các nút chọn nhanh 15p, 25p, 45p, 60p
+        document.querySelectorAll('.timer-preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.timer-preset-btn').forEach(b => {
+                    b.className = 'timer-preset-btn py-2 px-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-indigo-500/10 hover:text-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-500/20 dark:hover:text-indigo-400 border border-transparent hover:border-indigo-500/30 transition';
+                });
+                btn.className = 'timer-preset-btn py-2 px-2 rounded-xl text-xs font-semibold bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300 border border-indigo-500/30 transition';
+
+                const mins = parseInt(btn.getAttribute('data-minutes'), 10);
+                document.getElementById('customHoursInput').value = 0;
+                document.getElementById('customMinutesInput').value = mins;
+                document.getElementById('customSecondsInput').value = 0;
+                setTimerDuration(mins * 60, `Mục tiêu: ${mins} phút`);
+            });
+        });
+
+        // Áp dụng thời gian tùy chỉnh
+        document.getElementById('applyCustomTimeBtn').addEventListener('click', () => {
+            const hrs = Math.max(0, parseInt(document.getElementById('customHoursInput').value, 10) || 0);
+            const mins = Math.max(0, parseInt(document.getElementById('customMinutesInput').value, 10) || 0);
+            const secs = Math.max(0, parseInt(document.getElementById('customSecondsInput').value, 10) || 0);
+            const total = hrs * 3600 + mins * 60 + secs;
+
+            if (total <= 0) {
+                showToast('Vui lòng nhập thời gian lớn hơn 0 giây!', 'error');
+                return;
+            }
+            setTimerDuration(total, `Tùy chỉnh: ${formatHMS(total)}`);
+            showToast(`Đã đặt đồng hồ đếm ngược: ${formatHMS(total)}`, 'success');
+        });
+
+        /*************************************************************************
+         * 6. TRÌNH TẢI LÊN & PHÁT NHẠC CÁ NHÂN (MUSIC FILE UPLOADER & PLAYER)
+         *************************************************************************/
+        const audioPlayer = document.getElementById('htmlAudioPlayer');
+        const musicFileInput = document.getElementById('musicFileInput');
+        const musicDropZone = document.getElementById('musicDropZone');
+        const playlistContainer = document.getElementById('playlistContainer');
+        const playlistCountBadge = document.getElementById('playlistCountBadge');
+        const clearPlaylistBtn = document.getElementById('clearPlaylistBtn');
+        const currentTrackTitle = document.getElementById('currentTrackTitle');
+        const currentTrackSub = document.getElementById('currentTrackSub');
+        const audioSeekBar = document.getElementById('audioSeekBar');
+        const audioCurrentTime = document.getElementById('audioCurrentTime');
+        const audioTotalDuration = document.getElementById('audioTotalDuration');
+        const audioPlayPauseBtn = document.getElementById('audioPlayPauseBtn');
+        const audioPlayIcon = document.getElementById('audioPlayIcon');
+        const audioLoopBtn = document.getElementById('audioLoopBtn');
+        const audioVolumeSlider = document.getElementById('audioVolumeSlider');
+        const audioVolumeIcon = document.getElementById('audioVolumeIcon');
+        const audioEqualizer = document.getElementById('audioEqualizer');
+
+        let playlist = []; // [{ id, name, sizeLabel, url }]
+        let currentTrackIndex = -1;
+        let isLoopOne = false; // false = Lặp danh sách, true = Lặp 1 bài
+
+        function formatMinSec(sec) {
+            if (!isFinite(sec) || sec < 0) return '00:00';
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        function handleAudioFiles(fileList) {
+            if (!fileList || fileList.length === 0) return;
+            let addedCount = 0;
+
+            Array.from(fileList).forEach(file => {
+                if (file.type.startsWith('audio/') || /\.(mp3|wav|ogg|flac|m4a|aac)$/i.test(file.name)) {
+                    const objectUrl = URL.createObjectURL(file);
+                    const sizeMB = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+                    playlist.push({
+                        id: 'trk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                        name: file.name.replace(/\.[^/.]+$/, ''),
+                        rawName: file.name,
+                        sizeLabel: sizeMB,
+                        url: objectUrl
+                    });
+                    addedCount++;
+                }
+            });
+
+            if (addedCount > 0) {
+                renderPlaylist();
+                showToast(`Đã tải lên ${addedCount} bài hát vào danh sách phát!`, 'success');
+                if (currentTrackIndex === -1 && playlist.length > 0) {
+                    loadAndPlayTrack(0, false);
+                }
+            } else {
+                showToast('Vui lòng chọn tệp định dạng âm thanh hợp lệ (MP3, WAV, OGG, FLAC).', 'error');
+            }
+        }
+
+        musicFileInput.addEventListener('change', (e) => {
+            handleAudioFiles(e.target.files);
+            musicFileInput.value = '';
+        });
+
+        // Hỗ trợ kéo và thả file nhạc (Drag & Drop)
+        musicDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            musicDropZone.classList.add('border-indigo-500', 'bg-indigo-500/10');
+        });
+        musicDropZone.addEventListener('dragleave', () => {
+            musicDropZone.classList.remove('border-indigo-500', 'bg-indigo-500/10');
+        });
+        musicDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            musicDropZone.classList.remove('border-indigo-500', 'bg-indigo-500/10');
+            handleAudioFiles(e.dataTransfer.files);
+        });
+
+        function renderPlaylist() {
+            playlistCountBadge.textContent = `${playlist.length} bài hát`;
+            if (playlist.length > 0) {
+                clearPlaylistBtn.classList.remove('hidden');
+            } else {
+                clearPlaylistBtn.classList.add('hidden');
+            }
+
+            if (playlist.length === 0) {
+                playlistContainer.innerHTML = `
+                    <div class="text-center py-6 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 text-xs text-slate-400">
+                        <i class="fa-solid fa-compact-disc text-xl mb-1.5 text-slate-300 dark:text-slate-600 block"></i>
+                        Danh sách phát đang trống. Hãy tải các tệp MP3/WAV yêu thích của bạn lên.
+                    </div>
+                `;
+                return;
+            }
+
+            playlistContainer.innerHTML = playlist.map((track, idx) => {
+                const isActive = idx === currentTrackIndex;
+                return `
+                    <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border transition ${
+                        isActive
+                            ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-300'
+                            : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/60 dark:border-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }">
+                        <button
+                            type="button"
+                            onclick="selectTrackFromList(${idx})"
+                            class="flex items-center gap-2.5 min-w-0 flex-1 text-left"
+                        >
+                            <span class="w-6 h-6 rounded-lg ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'} flex items-center justify-center text-[11px] font-mono shrink-0">
+                                ${isActive ? '<i class="fa-solid fa-volume-high text-[10px]"></i>' : idx + 1}
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-xs font-semibold truncate">${escapeHtml(track.name)}</p>
+                                <p class="text-[10px] text-slate-400">${track.sizeLabel}</p>
+                            </div>
+                        </button>
+                        <button
+                            type="button"
+                            onclick="removeTrackFromList(${idx})"
+                            title="Xóa bài hát"
+                            class="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 flex items-center justify-center shrink-0"
+                        >
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function loadAndPlayTrack(index, autoPlay = true) {
+            if (index < 0 || index >= playlist.length) return;
+            currentTrackIndex = index;
+            const track = playlist[index];
+
+            audioPlayer.src = track.url;
+            audioSeekBar.disabled = false;
+            currentTrackTitle.textContent = track.name;
+            currentTrackSub.textContent = `Đang nạp tệp âm thanh (${track.sizeLabel})...`;
+            renderPlaylist();
+
+            if (autoPlay) {
+                audioPlayer.play().catch(() => {});
+            }
+        }
+
+        window.selectTrackFromList = function(idx) {
+            if (idx === currentTrackIndex) {
+                toggleAudioPlayPause();
+            } else {
+                loadAndPlayTrack(idx, true);
+            }
+        };
+
+        window.removeTrackFromList = function(idx) {
+            const removed = playlist[idx];
+            if (removed && removed.url) {
+                URL.revokeObjectURL(removed.url);
+            }
+            playlist.splice(idx, 1);
+
+            if (playlist.length === 0) {
+                audioPlayer.pause();
+                audioPlayer.removeAttribute('src');
+                currentTrackIndex = -1;
+                audioSeekBar.value = 0;
+                audioSeekBar.disabled = true;
+                audioCurrentTime.textContent = '00:00';
+                audioTotalDuration.textContent = '00:00';
+                currentTrackTitle.textContent = 'Chưa có bài hát nào được chọn';
+                currentTrackSub.textContent = 'Hãy tải file âm thanh lên để phát';
+                setPlayingUIState(false);
+            } else if (idx === currentTrackIndex) {
+                const nextIdx = idx % playlist.length;
+                loadAndPlayTrack(nextIdx, true);
+            } else if (idx < currentTrackIndex) {
+                currentTrackIndex--;
+            }
+
+            renderPlaylist();
+        };
+
+        clearPlaylistBtn.addEventListener('click', () => {
+            playlist.forEach(t => t.url && URL.revokeObjectURL(t.url));
+            playlist = [];
+            audioPlayer.pause();
+            audioPlayer.removeAttribute('src');
+            currentTrackIndex = -1;
+            audioSeekBar.value = 0;
+            audioSeekBar.disabled = true;
+            audioCurrentTime.textContent = '00:00';
+            audioTotalDuration.textContent = '00:00';
+            currentTrackTitle.textContent = 'Chưa có bài hát nào được chọn';
+            currentTrackSub.textContent = 'Hãy tải file âm thanh lên để phát';
+            setPlayingUIState(false);
+            renderPlaylist();
+            showToast('Đã xóa toàn bộ danh sách phát.', 'info');
+        });
+
+        function setPlayingUIState(playing) {
+            if (playing) {
+                audioPlayIcon.className = 'fa-solid fa-pause text-sm';
+                audioEqualizer.classList.remove('hidden');
+                audioEqualizer.classList.add('flex');
+            } else {
+                audioPlayIcon.className = 'fa-solid fa-play text-sm ml-0.5';
+                audioEqualizer.classList.add('hidden');
+                audioEqualizer.classList.remove('flex');
+            }
+        }
+
+        function toggleAudioPlayPause() {
+            if (playlist.length === 0) {
+                showToast('Hãy tải lên ít nhất một file nhạc từ thiết bị của bạn trước!', 'info');
+                return;
+            }
+            if (currentTrackIndex === -1) {
+                loadAndPlayTrack(0, true);
+                return;
+            }
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+            } else {
+                audioPlayer.pause();
+            }
+        }
+
+        audioPlayPauseBtn.addEventListener('click', toggleAudioPlayPause);
+
+        document.getElementById('audioPrevBtn').addEventListener('click', () => {
+            if (playlist.length === 0) return;
+            const prevIdx = (currentTrackIndex - 1 + playlist.length) % playlist.length;
+            loadAndPlayTrack(prevIdx, true);
+        });
+
+        document.getElementById('audioNextBtn').addEventListener('click', () => {
+            if (playlist.length === 0) return;
+            const nextIdx = (currentTrackIndex + 1) % playlist.length;
+            loadAndPlayTrack(nextIdx, true);
+        });
+
+        // Chế độ lặp lại (Loop 1 bài hoặc Lặp danh sách)
+        audioLoopBtn.addEventListener('click', () => {
+            isLoopOne = !isLoopOne;
+            audioPlayer.loop = isLoopOne;
+            if (isLoopOne) {
+                audioLoopBtn.className = 'w-8 h-8 rounded-lg text-xs bg-indigo-500 text-white flex items-center justify-center transition';
+                audioLoopBtn.title = 'Đang bật: Lặp lại 1 bài hiện tại';
+                showToast('Chế độ lặp: Lặp lại bài hát hiện tại.', 'info');
+            } else {
+                audioLoopBtn.className = 'w-8 h-8 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center transition';
+                audioLoopBtn.title = 'Chế độ lặp lại: Lặp toàn bộ danh sách';
+                showToast('Chế độ lặp: Chuyển bài tự động theo danh sách.', 'info');
+            }
+        });
+
+        // Sự kiện từ Audio HTML5
+        audioPlayer.addEventListener('loadedmetadata', () => {
+            audioTotalDuration.textContent = formatMinSec(audioPlayer.duration);
+            const track = playlist[currentTrackIndex];
+            if (track) {
+                currentTrackSub.textContent = `Bài ${currentTrackIndex + 1}/${playlist.length} • ${track.sizeLabel}`;
+            }
+        });
+
+        audioPlayer.addEventListener('timeupdate', () => {
+            audioCurrentTime.textContent = formatMinSec(audioPlayer.currentTime);
+            if (audioPlayer.duration) {
+                audioSeekBar.value = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+            }
+        });
+
+        audioPlayer.addEventListener('play', () => setPlayingUIState(true));
+        audioPlayer.addEventListener('pause', () => setPlayingUIState(false));
+
+        audioPlayer.addEventListener('ended', () => {
+            if (!isLoopOne && playlist.length > 0) {
+                const nextIdx = (currentTrackIndex + 1) % playlist.length;
+                loadAndPlayTrack(nextIdx, true);
+            }
+        });
+
+        audioSeekBar.addEventListener('input', () => {
+            if (audioPlayer.duration) {
+                const seekTo = (audioSeekBar.value / 100) * audioPlayer.duration;
+                audioPlayer.currentTime = seekTo;
+            }
+        });
+
+        // Điều chỉnh âm lượng
+        audioVolumeSlider.addEventListener('input', () => {
+            const vol = parseFloat(audioVolumeSlider.value);
+            audioPlayer.volume = vol;
+            audioPlayer.muted = vol === 0;
+            updateVolumeIcon(vol);
+        });
+
+        document.getElementById('audioMuteBtn').addEventListener('click', () => {
+            audioPlayer.muted = !audioPlayer.muted;
+            updateVolumeIcon(audioPlayer.muted ? 0 : audioPlayer.volume);
+        });
+
+        function updateVolumeIcon(vol) {
+            if (vol === 0 || audioPlayer.muted) {
+                audioVolumeIcon.className = 'fa-solid fa-volume-xmark text-rose-400';
+            } else if (vol < 0.5) {
+                audioVolumeIcon.className = 'fa-solid fa-volume-low';
+            } else {
+                audioVolumeIcon.className = 'fa-solid fa-volume-high';
+            }
+        }
+
+        /*************************************************************************
+         * 7. CHẾ ĐỘ SÁNG / TỐI (DARK / LIGHT MODE) & KHỞI TẠO HỆ THỐNG
+         *************************************************************************/
+        function initTheme() {
+            const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
+            const htmlEl = document.documentElement;
+            const themeIcon = document.getElementById('themeIcon');
+
+            if (savedTheme === 'dark') {
+                htmlEl.classList.add('dark');
+                themeIcon.className = 'fa-solid fa-sun text-amber-400 text-base';
+            } else {
+                htmlEl.classList.remove('dark');
+                themeIcon.className = 'fa-solid fa-moon text-indigo-600 text-base';
+            }
+        }
+
+        document.getElementById('themeToggleBtn').addEventListener('click', () => {
+            const htmlEl = document.documentElement;
+            const isDark = htmlEl.classList.toggle('dark');
+            localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+
+            const themeIcon = document.getElementById('themeIcon');
+            themeIcon.className = isDark
+                ? 'fa-solid fa-sun text-amber-400 text-base'
+                : 'fa-solid fa-moon text-indigo-600 text-base';
+
+            // Cập nhật lại màu lưới biểu đồ theo giao diện Sáng/Tối
+            const stats = calculateOverallAnalytics();
+            updateWeeklyChart(stats);
+        });
+
+        function displayVietnameseHeaderDate() {
+            const now = new Date();
+            const formatter = new Intl.DateTimeFormat('vi-VN', {
+                weekday: 'long',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+            document.getElementById('currentDateDisplay').textContent = formatter.format(now);
+            document.getElementById('currentDayBadge').textContent = `Hôm nay: ${DAYS_OF_WEEK[todayIndex].full}`;
+        }
+
+        // Khởi chạy toàn bộ ứng dụng khi trang tải xong
+        window.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            displayVietnameseHeaderDate();
+            loadHabitsFromStorage();
+            renderDashboard();
+            updateTimerUI();
+        });
+    </script>
+</body>
+</html>
